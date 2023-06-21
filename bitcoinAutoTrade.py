@@ -1,21 +1,23 @@
+from re import S
 import time
 import pyupbit
 import datetime
 import pandas as pd
 import schedule
 from fbprophet import Prophet
-import datetime as dt
 from slacker import Slacker
+import datetime as dt
 import requests
+import traceback
 import pytz
-utc=pytz.UTC
+KST = datetime.timezone(datetime.timedelta(hours=9))
 
 access = "YttVn2BhLicTA5b02xrZc5ydbqYGjvpnhbP9wTdP"
 secret = "LtpkDjfN9gNvEtgA6u3AIMqvx86bQ6rBSLzoqJlq"
-myToken = "xoxb-3149418271687-3166344806020-x3ttmDoZxutryjJ037pmS1zH"
+myToken = "xoxb-3149418271687-3600159322736-3xQHb32Q0LrEf6Yam3Cr1mBb"
+T_Token = "xoxb-3149418271687-3582406642517-c0ezQQDHR4kGHm4cYHYQ3EtG"
 
 def post_message(token, channel, text):
-    """슬랙 메시지 전송"""
     response = requests.post("https://slack.com/api/chat.postMessage",
         headers={"Authorization": "Bearer "+token},
         data={"channel": channel,"text": text}
@@ -48,10 +50,10 @@ def get_current_price(ticker):
     """현재가 조회"""
     return pyupbit.get_orderbook(ticker=ticker)["orderbook_units"][0]["ask_price"]
 
-predicted_close_price = 0
-def predict_price(ticker):
+predicted_close_price = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+def predict_price(ticker,i):
     """Prophet으로 당일 종가 가격 예측"""
-    global predicted_close_price
+    global predicted_close_price 
     df = pyupbit.get_ohlcv(ticker, interval="minute60")
     df = df.reset_index()
     df['ds'] = df['index'].dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -66,41 +68,112 @@ def predict_price(ticker):
     if len(closeDf) == 0: 
         closeDf = forecast[forecast['ds'] == datetime.datetime.strptime(data.iloc[-1]['ds'], '%Y-%m-%d %H:%M:%S').replace(hour=9)]
     closeValue = closeDf['yhat'].values[0]
-    predicted_close_price = closeValue
+    predicted_close_price[i]=closeValue
+    print(predicted_close_price)
     
-predict_price("KRW-BTC")
-schedule.every().hour.do(lambda: predict_price("KRW-BTC"))
+predict_price("KRW-BTC",0)
+schedule.every().hour.do(lambda: predict_price("KRW-BTC",0))
+predict_price("KRW-ETH",1)
+schedule.every().hour.do(lambda: predict_price("KRW-ETH",1))
+predict_price("KRW-BCH",2)
+schedule.every().hour.do(lambda: predict_price("KRW-BCH",2))
+predict_price("KRW-ETC",3)
+schedule.every().hour.do(lambda: predict_price("KRW-ETC",3))
+predict_price("KRW-NEO",4)
+schedule.every().hour.do(lambda: predict_price("KRW-NEO",4))
+predict_price("KRW-AAVE",5)
+schedule.every().hour.do(lambda: predict_price("KRW-AAVE",5))
+predict_price("KRW-MTL",6)
+schedule.every().hour.do(lambda: predict_price("KRW-MTL",6))
+predict_price("KRW-OMG",7)
+schedule.every().hour.do(lambda: predict_price("KRW-OMG",7))
+predict_price("KRW-WAVES",8)
+schedule.every().hour.do(lambda: predict_price("KRW-WAVES",8))
+predict_price("KRW-STORJ",9)
+schedule.every().hour.do(lambda: predict_price("KRW-STORJ",9))
+predict_price("KRW-ADA",10)
+schedule.every().hour.do(lambda: predict_price("KRW-ADA",10))
+predict_price("KRW-BTG",11)
+schedule.every().hour.do(lambda: predict_price("KRW-BTG",11))
+predict_price("KRW-ICX",12)
+schedule.every().hour.do(lambda: predict_price("KRW-ICX",12))
+predict_price("KRW-SC",13)
+schedule.every().hour.do(lambda: predict_price("KRW-SC",13))
+predict_price("KRW-ONT",14)
+schedule.every().hour.do(lambda: predict_price("KRW-ONT",14))
+predict_price("KRW-BCH",15)
+schedule.every().hour.do(lambda: predict_price("KRW-BCH",15))
+predict_price("KRW-BAT",16)
+schedule.every().hour.do(lambda: predict_price("KRW-BAT",16))
+predict_price("KRW-IQ",17)
+schedule.every().hour.do(lambda: predict_price("KRW-IQ",17))
+predict_price("KRW-THETA",18)
+schedule.every().hour.do(lambda: predict_price("KRW-THETA",18))
+predict_price("KRW-ATOM",19)
+schedule.every().hour.do(lambda: predict_price("KRW-ATOM",19))
+predict_price("KRW-KAVA",20)
+schedule.every().hour.do(lambda: predict_price("KRW-KAVA",20))
 
 # 로그인
 upbit = pyupbit.Upbit(access, secret)
 print("autotrade start")
 post_message(myToken,"#bitcoinauto-ai", "autotrade start")
 
+
+def AI(target, name, set_time, i):
+    
+    start_time = get_start_time(target) #코인은 장이 24시간이라 하루의 시작을 오전 9시로 적용
+    end_time = start_time + datetime.timedelta(days=1) # 담날 9시까지
+    schedule.run_pending()
+    price = pyupbit.get_current_price(target)
+    if start_time < set_time and set_time < end_time.replace(hour=9) - datetime.timedelta(seconds=60):#9->9면 계속 돌아가니 9시부터 담날 8시50분까지 자동으로 돌림
+        target_price = get_target_price(target, 0.5)#이걸 변경하면 구매전략 변경됨, 변동성 돌파전략을 이용한 목표가 설정
+        current_price = get_current_price(target)
+        #print(target_price,current_price,predicted_close_price)
+        if target_price < current_price and current_price < predicted_close_price[i]:
+            krw = get_balance("KRW")
+            if krw > 5000:
+                buy_result = upbit.buy_market_order(target, krw*0.9995)#돌파하면 구매
+                post_message(myToken,"#bitcoinauto-ai", "BTC buy : " +str(buy_result))
+    else:
+        btc = get_balance(name)#담날 오전 8시50분에 전량 매도
+        if btc > (5000/price):#수정
+            sell_result = upbit.sell_market_order(target, btc*0.9995)
+            post_message(myToken,"#bitcoinauto-ai", "BTC buy : " +str(sell_result))
+    time.sleep(1)
+
 # 자동매매 시작
 while True:
     try:
         now = datetime.datetime.now()
-        now = now.replace(tzinfo=utc)
-        start_time = get_start_time("KRW-BTC") #코인은 장이 24시간이라 하루의 시작을 오전 9시로 적용
-        end_time = start_time + datetime.timedelta(days=1) # 담날 9시까지
-        schedule.run_pending()
+        now = now.replace(tzinfo=KST)
+        AI("KRW-BTC","BTC",now,0)
+        AI("KRW-ETH","ETH",now,1)
+        AI("KRW-BCH","BCH",now,2)
+        AI("KRW-ETC","ETC",now,3)
+        AI("KRW-NEO","NEO",now,4)
+        AI("KRW-AAVE","AAVE",now,5)
+        AI("KRW-MTL","MTL",now,6)
+        AI("KRW-OMG","OMG",now,7)
+        AI("KRW-XRP","WAVES",now,8)
+        AI("KRW-STORJ","STORJ",now,9)
+        AI("KRW-ADA","ADA",now,10)
+        AI("KRW-BTG","BTG",now,11)
+        AI("KRW-ICX","ICX",now,12)
+        AI("KRW-SC","SC",now,13)
+        AI("KRW-ONT","ONT",now,14)
+        AI("KRW-BCH","BCH",now,15)
+        AI("KRW-BAT","BAT",now,16)
+        AI("KRW-IQ","IQ",now,17)
+        AI("KRW-THETA","THETA",now,18)
+        AI("KRW-ATOM","ATOM",now,19)
+        AI("KRW-KAVA","KAVA",now,20)
+        if(now.minute==0 and now.second<=5):#정시 마다 프로세스 확인
+            post_message(T_Token,"#bitcoinauto-ai", "프로세스가 돌아가고 있습니다 " +(str(now.hour)))
 
-        if start_time < now < end_time - datetime.timedelta(seconds=10):#9->9면 계속 돌아가니 9시부터 담날 8시50분까지 자동으로 돌림
-            target_price = get_target_price("KRW-BTC", 0.5)#이걸 변경하면 구매전략 변경됨, 변동성 돌파전략을 이용한 목표가 설정
-            current_price = get_current_price("KRW-BTC")
-            #print(target_price,current_price,predicted_close_price)
-            if target_price < current_price and current_price < predicted_close_price:
-                krw = get_balance("KRW")
-                if krw > 5000:
-                    buy_result = upbit.buy_market_order("KRW-BTC", krw*0.9995)#돌파하면 구매
-                    post_message(myToken,"#bitcoinauto-ai", "BTC buy : " +str(buy_result))
-        else:
-            btc = get_balance("BTC")#담날 오전 8시50분에 전량 매도
-            if btc > 0.00008:
-                sell_result = upbit.sell_market_order("KRW-BTC", btc*0.9995)
-                post_message(myToken,"#bitcoinauto-ai", "BTC buy : " +str(sell_result))
-        time.sleep(1)
     except Exception as e:
         print(e)
+        print(traceback.format_exc())
+        post_message(myToken,"#bitcoinauto-ai",traceback.format_exc())
         post_message(myToken,"#bitcoinauto-ai", e)
         time.sleep(1)

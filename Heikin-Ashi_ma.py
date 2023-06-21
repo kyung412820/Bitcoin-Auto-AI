@@ -16,15 +16,14 @@ import ta
 from time import sleep
 KST = datetime.timezone(datetime.timedelta(hours=9))
 
-#업비트
-access = ""
-secret = ""
-#바이낸스
-access_b = ""
-secret_b = ""
-myToken = ""
-T_Token = ""
+
+access = "VniXlnhdMPVIQO96iT8fHQP0PwQlJnHqKY5L2yCc"
+secret = "0LyCDz4X2BxBY8sRjGuviepZxveNhs8m9rGwzwil"
+myToken = "xoxb-3149418271687-3600159322736-3xQHb32Q0LrEf6Yam3Cr1mBb"
+T_Token = "xoxb-3149418271687-3582406642517-c0ezQQDHR4kGHm4cYHYQ3EtG"
 sell_key=["1",2,3]
+buy_price=0
+sell_target="0"
 
 def post_message(token, channel, text):
     # time.sleep(0.01)
@@ -33,15 +32,15 @@ def post_message(token, channel, text):
         data={"channel": channel,"text": text}
     )
 
-def get_target_price(ticker):
+def get_target_price(ticker,df):
     """변동성 돌파 전략으로 매수 목표가 조회"""
-    df = pyupbit.get_ohlcv(ticker, interval="minute10", count=11) #현재시간 10분 단위 30분전 데이터의 고점 저점을 기준으로 계산            *
-    current_price = get_current_price(ticker)
     k=0.5
+    i=0
     target_price=[] 
-    for i in range(10):
-        target_price.append(df.iloc[i]['close'] + (df.iloc[i]['high'] - df.iloc[i]['low']) * k) #현재 종가 + 과거 고점-저점*0.k배
-    if(current_price>max(target_price)):
+    for i in range(1,5):
+        target_price.append(df.iloc[199-i]['close'] + (df.iloc[199-i]['high'] - df.iloc[199-i]['low']) * k) #현재 종가 + 과거 고점-저점*0.k배
+
+    if(df['close'][198]>max(target_price)and df['open'][198]==df['low'][198]):
         result="매수"
     else:
         result="보류"
@@ -99,12 +98,12 @@ def rsi(ohlc: pd.DataFrame, period: int = 14):
         
     RS = _gain / _loss
     rsi_current=pd.Series(_gain/(_gain+_loss)*100, name="RSI")
-    if ((rsi_current.iloc[199] >rsi_current.iloc[195])): #(rsi_current.iloc[196]<rsi_current.iloc[198])and(rsi_current.iloc[196]>rsi_current.iloc[197])and(rsi_current.iloc[197]<rsi_current.iloc[198]) and 
-        rsi="매수"
-    elif (rsi_current.iloc[196]<rsi_current.iloc[197])and(rsi_current.iloc[197]>rsi_current.iloc[198]):
-        rsi="매도"
-    else:
-        rsi="보류"
+
+    for i in range(0,3):
+        if(rsi_current.iloc[197-i]<=50)and(rsi_current.iloc[198-i]>=50):
+            rsi="매수"
+        else:
+            rsi="보류"
     return rsi
     
 def CCI (df):
@@ -123,26 +122,25 @@ def CCI (df):
 
 def macd(df: pd.DataFrame, macd_short:int=12, macd_long:int=26, macd_signal:int=9):
     global result
-
+    count=0
     df["MACD_12"]=df["close"].ewm(span=macd_short, adjust=False).mean()
     df["MACD_26"]=df["close"].ewm(span=macd_long, adjust=False).mean()
     df["MACD"]=df["MACD_12"]-df["MACD_26"] #12, 26
     df["MACD_signal"]=df["MACD"].ewm(span=macd_signal, adjust=False).mean()  # 9
     df["Indicator"]=df["MACD"]-df["MACD_signal"]
-
-    if ((df["Indicator"][198]>0) and (df["Indicator"][197]<0) and (df["MACD_signal"][197]<0)and (df["MACD"][197]<0)and (df["MACD"][196]<0)):
+    for i in range(0,3):
+        if(df["MACD"][197-i]<df["MACD_signal"][198-i]): 
+            count+=1
+    if(count==3):  
         result="매수"
-    elif ((df["Indicator"][198]<0) and (df["Indicator"][197]>0) and (df["MACD_signal"][198]>0)and (df["MACD_signal"][197]>0)and (df["MACD_signal"][196]>0)):
-        result="매도"
     else:
         result="보류"
     return result
 
-def get_ma(df, n1, n2): #이평선 계산 n1(60 이평선)-n2(120 이평선)
-    time2=df['close'].rolling(window=n2).mean()#120
-    time1=df['close'].rolling(window=n1).mean()#60
+def get_ma(df, n1): 
+    time1=df['close'].ewm(span=n1, adjust=False).mean()#200
 
-    if (((time1[198]/time2[198]>=0.99)and(time1[198]/time2[198]<=1)and((time2[197]-time1[197])>(time2[198]-time1[198]))and((time2[196]-time1[196])>(time2[197]-time1[197])))):#or(((time1[198]-time2[198])>(time1[196]-time2[196]))and(time1[196]-time2[196]>0)and(time1[198]-time2[198]>0)and(time1[199]>time1[198]))): #60이평선 - 120이평선의 값이 계속 증가하고 이평선60이 120보다 높을 경우라면
+    if (df['close'][198]>=time1[198]):
         return "up"
     else:
         return "down"
@@ -171,12 +169,14 @@ def stock_rsi(df: pd.DataFrame, p1, k1, d1):
         stochrsi_K = stochrsi.rolling(smoothK).mean()
         stochrsi_D = stochrsi_K.rolling(smoothD).mean()
 
-        if(stochrsi_K[197]<=0.3 and (stochrsi_K[197]<stochrsi_K[198]) and (stochrsi_K[196]>stochrsi_K[197])):
-            return "매수"
-        elif(stochrsi_K[197]>=0.7 and (stochrsi_K[198]>stochrsi_K[199])):
-            return "매도"
-        else:
-            return "보류"
+        for i in range(0,2):
+            if (((stochrsi_K[197-i]<stochrsi_D[197-i]) and (stochrsi_K[198-i]>stochrsi_D[198-i]))==True):
+                if(stochrsi_K[197-i]<0.2):
+                    return "매수"
+        #if ((stochrsi_K[198]>stochrsi_K[197]) and (stochrsi_K[199]<stochrsi_K[198])):
+        if(stochrsi_K[199]>0.8):
+                return "매도"
+        return "보류"
 
 def ADX(df: pd.DataFrame):
     high_prices = df['high']
@@ -187,7 +187,7 @@ def ADX(df: pd.DataFrame):
     adx = ta.trend.adx(high_prices, low_prices, close_prices, 14) #해당 코드들은 ta 라이브러리 참조
     adx_neg = ta.trend.adx_neg(high_prices, low_prices, close_prices, 14)
     adx_pos = ta.trend.adx_pos(high_prices, low_prices, close_prices, 14)
-    if(adx[198]>21 and adx_pos[198]>adx_neg[198]):
+    if(adx[198]<25 and adx[198]>15):
          return "매수"
     else:
         return "보류"
@@ -199,7 +199,7 @@ def OBV(df: pd.DataFrame):
     # ADX 값 계산
     obv = ta.volume.on_balance_volume(close_prices,Volume_prices)
 
-def Haikin_Ashi(df: pd.DataFrame):
+def Heikin_Ashi(df: pd.DataFrame):
     df_ha=df.copy()[['open','high','low','close']]
     df_ha['close']=((df['open']+df['high']+df['low']+df['close'])/4)
 
@@ -211,34 +211,55 @@ def Haikin_Ashi(df: pd.DataFrame):
     
     df_ha['high']=df_ha.loc[:,['open','close']].join(df['high']).max(axis=1)
     df_ha['low']=df_ha.loc[:,['open','close']].join(df['low']).max(axis=1)
-
     return df_ha
 
 def AI(target, name, set_time):
     global few_minutes_later
     schedule.run_pending()
+    global sell_target
+    global buy_price
+
     df = pyupbit.get_ohlcv(target, interval="minute10")
-    Haikin_Ashi_result=Haikin_Ashi(df)
-    print(Haikin_Ashi_result)
-    #cci_current=CCI(df)
-    #rsi_current = rsi(df, 14)
-    #target_price = get_target_price(target)#이걸 변경하면 구매전략 변경됨, 변동성 돌파전략을 이용한 목표가 설정
     current_price = get_current_price(target)
-    macd_current = macd(df,12,26,9)
-    #stock_rsi_result=stock_rsi(df,14,3,3)
-    ADX_result=ADX(df)
-    #OBV_result=OBV(df)
-    # print(target,target_price,current_price,predicted_close_price[i],target_price < current_price and current_price < predicted_close_price[i])
-    if (ADX_result=="매수"and macd_current=="매수" and get_ma(df, 60, 120)=="up" and get_target_price(target)): #get_ma = 이평선 120, 60의 계산값
-        krw = get_balance("KRW")
-        if krw > 5000:
-            post_message(myToken,"#bitcoinauto-ai", "Coin buy : " +target+"  "+str(krw)+"  "+str(current_price))
-            upbit.buy_market_order(target, krw*0.9995) #돌파하면 구매
-            sell_key[0]=target
-            sell_key[1]=current_price
-            hour_ch, minute10=time_changer(now,20)
-            few_minutes_later = now.replace(minute=minute10, hour=hour_ch)#30분 후-----------------------------------   
-    elif (macd_current=="매도"):
+    Heikin_Ashi_result=Heikin_Ashi(df)
+    krw = get_balance("KRW")
+    buy_max=0
+    if(krw>5000):
+        max_check=0
+        timing=""
+        #cci_current=CCI(df)
+        rsi_current = rsi(df, 14)
+        target_price = get_target_price(target,Heikin_Ashi_result)#이걸 변경하면 구매전략 변경됨, 변동성 돌파전략을 이용한 목표가 설정
+        macd_current = macd(df,12,26,9)
+        stock_rsi_result=stock_rsi(Heikin_Ashi_result,14,3,3)
+        get_ma_result=get_ma(df,200)
+        """
+        for i in range(0,2):
+            if((Heikin_Ashi_result['close'][197-i]>max_check)and(Heikin_Ashi_result['close'][198-i]>Heikin_Ashi_result['close'][197-i])):
+                max_check=Heikin_Ashi_result['close'][197-i]
+                buy_max+=1
+            elif(buy_max<2):
+                max_check=1000000000000000000000000000000000000000
+        if (Heikin_Ashi_result['close'][198]>max_check)and(Heikin_Ashi_result['open'][198]==Heikin_Ashi_result['low'][198])and max_check!=1000000000000000000000000000000000000000:
+            timing="매수"
+        else:
+            timing="보류"
+        """
+        print(target,":",get_ma_result,stock_rsi_result,target_price)
+        #ADX_result=ADX(df)
+        #OBV_result=OBV(df)
+        # print(target,target_price,current_price,predicted_close_price[i],target_price < current_price and current_price < predicted_close_price[i])
+        if (get_ma_result=="up"and stock_rsi_result=="매수"and target_price=="매수"): #get_ma = 이평선 120, 60의 계산값
+            if krw > 5000:
+                post_message(myToken,"#bitcoinauto-ai", "Coin buy : " +target+"  "+str(krw)+"  "+str(current_price))
+                upbit.buy_market_order(target, krw*0.9995) #돌파하면 구매
+                buy_price=current_price
+                sell_target=target
+                sell_key[0]=target
+                sell_key[1]=current_price
+                hour_ch, minute10=time_changer(now,20)
+                few_minutes_later = now.replace(minute=minute10, hour=hour_ch)#30분 후-----------------------------------    
+    elif (stock_rsi_result=="매도"):
         btc = get_balance(name)
         if btc > (5000/current_price):
             upbit.sell_market_order(target, btc*0.9995)
@@ -247,6 +268,8 @@ def AI(target, name, set_time):
             sell_key[0]=1.0
             sell_key[1]=1.0
             sell_key[2]=1.0
+            buy_price=0
+            sell_target="0"
             print("")
     sleep(0.1) #너무 빠른 속도로 api에 연속으로 데이터를 요청하면 뻑난다. 적당히 텀을 둬가면서 요청하자
 
